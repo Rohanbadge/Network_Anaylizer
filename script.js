@@ -358,10 +358,10 @@ function getRealNetworkSignal() {
 }
 
 const pingTargets = [
-  { id: 'gw',  host: 'Gateway',   url: 'https://httpbin.org/get?_=' + Date.now() },
-  { id: 'dns', host: 'DNS',        url: 'https://httpbin.org/ip?_=' + Date.now() },
-  { id: 'net', host: 'Internet',   url: 'https://httpbin.org/headers?_=' + Date.now() },
-  { id: 'app', host: 'Cloudflare', url: 'https://httpbin.org/uuid?_=' + Date.now() },
+  { id: 'gw',  host: 'Google',    url: 'https://www.google.com/favicon.ico?_=' + Date.now() },
+  { id: 'dns', host: 'YouTube',   url: 'https://www.youtube.com/favicon.ico?_=' + Date.now() },
+  { id: 'net', host: 'Facebook',  url: 'https://www.facebook.com/favicon.ico?_=' + Date.now() },
+  { id: 'app', host: 'Instagram', url: 'https://www.instagram.com/favicon.ico?_=' + Date.now() },
 ];
 
 async function runPing() {
@@ -384,7 +384,7 @@ async function runPing() {
     try {
       const response = await fetch(t.url, { 
         cache: 'no-store', 
-        mode: 'cors'
+        mode: 'no-cors'
       });
       
       const ms = Math.round(performance.now() - start);
@@ -827,66 +827,19 @@ function detectNetworkGeneration(connection) {
   if (type === 'wifi') return 'WI-FI';
   if (type === 'ethernet') return 'LAN';
   
-  // Default generation based on effectiveType
-  let generation = 'UNKNOWN';
+  // For mobile connections, default to 4G as physical radio state is hidden by browsers
+  let generation = '4G';
   
-  // Map effectiveType to generation
-  if (effectiveType) {
-    switch (effectiveType) {
-      case 'slow-2g':
-        generation = '2G';
-        break;
-      case '2g':
-        generation = '2G';
-        break;
-      case '3g':
-        generation = '3G';
-        break;
-      case '4g':
-        generation = '4G';
-        break;
-      default:
-        generation = effectiveType.toUpperCase();
-    }
+  if (downlink && downlink >= 100) {
+    generation = '5G';
+  } else if (downlink && downlink >= 50) {
+    generation = '4G+';
   }
   
-  // Enhance detection for cellular networks using downlink speed
-  if (!type || type === 'cellular') {
-    // Use downlink speed (in Mbps) to better differentiate
-    if (downlink && downlink > 0) {
-      if (downlink >= 100) {
-        generation = '5G';
-      } else if (downlink >= 50) {
-        generation = '4G+';
-      } else if (downlink >= 20) {
-        generation = '4G';
-      } else if (downlink >= 5) {
-        generation = '3G';
-      } else if (downlink >= 1) {
-        generation = '2G';
-      }
-      // If downlink is less than 1, keep existing generation
-    }
-    
-    // Also consider RTT (round-trip time) for better accuracy
-    if (rtt && rtt < 30) {
-      // Very low latency suggests 5G or 4G+
-      if (generation === '4G+' || generation === '4G') {
-        generation = '5G';
-      } else if (generation === '3G') {
-        generation = '4G';
-      }
-    }
+  if (rtt && rtt < 30) {
+    generation = '5G';
   }
-  
-  // If still UNKNOWN, make a best guess based on type
-  if (generation === 'UNKNOWN') {
-    if (!type || type === 'cellular') {
-      // Default to 4G for cellular as it's most common nowadays
-      generation = '4G';
-    }
-  }
-  
+
   return generation;
 }
 
@@ -1223,8 +1176,11 @@ function measureUpload(runId, onProgress) {
 
       try {
         const payload = new Uint8Array(bytes);
-        for (let j = 0; j < payload.length; j++) {
+        for (let j = 0; j < Math.min(1024, bytes); j++) {
           payload[j] = Math.floor(Math.random() * 256);
+        }
+        for (let j = 1024; j < bytes; j *= 2) {
+          payload.copyWithin(j, 0, j);
         }
 
         const xhr = new XMLHttpRequest();
@@ -1239,15 +1195,20 @@ function measureUpload(runId, onProgress) {
           if (!event.lengthComputable) return;
           
           const now = performance.now();
+          const elapsed = (now - startTime) / 1000;
           const windowElapsed = (now - lastUpdate) / 1000;
           
           if (windowElapsed >= 0.25 || event.loaded === event.total) {
             const windowMbps = ((event.loaded - lastLoaded) * 8) / Math.max(windowElapsed, 0.001) / 1_000_000;
             
-            const currentSpeed = bestSpeed === 0 ? windowMbps : (windowMbps * 0.7 + bestSpeed * 0.3);
-            if (currentSpeed > bestSpeed) bestSpeed = currentSpeed;
+            // Ignore the first 1.0 seconds of OS buffer bloat for bestSpeed recording
+            if (elapsed > 1.0) {
+              const currentSpeed = bestSpeed === 0 ? windowMbps : (windowMbps * 0.7 + bestSpeed * 0.3);
+              if (currentSpeed > bestSpeed) bestSpeed = currentSpeed;
+            }
             
-            onProgress(currentSpeed);
+            // Always update UI so it doesn't freeze
+            onProgress(bestSpeed === 0 ? windowMbps : bestSpeed);
             lastUpdate = now;
             lastLoaded = event.loaded;
           }
@@ -1259,7 +1220,7 @@ function measureUpload(runId, onProgress) {
               const elapsedSec = Math.max((performance.now() - startTime) / 1000, 0.001);
               const finalSpeed = (bytes * 8) / elapsedSec / 1_000_000;
               successfulTests++;
-              resolveXHR(Math.max(finalSpeed, bestSpeed));
+              resolveXHR(finalSpeed);
             } else {
               rejectXHR(new Error('Upload failed'));
             }
@@ -1272,7 +1233,10 @@ function measureUpload(runId, onProgress) {
 
         xhr.send(payload);
         
-        await uploadComplete;
+        const finalTestSpeed = await uploadComplete;
+        if (bestSpeed === 0 || finalTestSpeed > bestSpeed) {
+          bestSpeed = finalTestSpeed;
+        }
         totalTests++;
         
         if (successfulTests >= minTests && (performance.now() - overallStart) >= minDuration) {
