@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Network Analyzer"/>
+  <meta name="theme-color" content="#060d18"/>
+  <meta name="description" content="Real-time network analyzer for mobile and desktop"/>
+  <link rel="manifest" href="manifest.json"/>
+  <title>Network Analyzer Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="startScreen" class="screen">
+  <div class="ss-bg">
+    <div class="ss-grid"></div>
+    <div class="ss-vignette"></div>
+  </div>
+  <div class="ss-rings">
+    <div class="ss-ring" style="--d:0s;--s:140px"></div>
+    <div class="ss-ring" style="--d:.6s;--s:260px"></div>
+    <div class="ss-ring" style="--d:1.2s;--s:380px"></div>
+    <div class="ss-ring" style="--d:1.8s;--s:500px"></div>
+  </div>
+  <div class="ss-sweep"></div>
+  <div class="ss-center">
+    <div class="ss-icon">📡</div>
+    <h1 class="ss-h1">NETWORK<br><span>ANALYZER</span></h1>
+    <p class="ss-sub">Pro Signal Intelligence Suite</p>
+    <div class="ss-divider"></div>
+    <button id="startBtn" class="ss-btn">
+      <span class="ss-btn-pulse"></span>
+      <span class="ss-btn-text">▶ &nbsp;INITIALIZE SCAN</span>
+    </button>
+    <p class="ss-warn">⚠ &nbsp;Location access will be required</p>
+  </div>
+</div>
+
+<div id="permScreen" class="screen hidden">
+  <div class="ss-bg"><div class="ss-grid"></div></div>
+  <div class="perm-card">
+    <div class="perm-icon-wrap">
+      <svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="27" fill="none" stroke="var(--c)" stroke-width="1.5" opacity=".3"/><text x="28" y="36" text-anchor="middle" font-size="26">📡</text></svg>
+    </div>
+    <h2 class="perm-title">Network Analyzer</h2>
+    <p class="perm-desc" id="permDesc">Initializing network detection and location services...</p>
+    <button id="enableBtn" class="perm-btn">START ANALYSIS</button>
+    <p class="perm-note">🔒 &nbsp;All data is processed locally on your device</p>
+  </div>
+</div>
+
+<div id="errScreen" class="screen hidden">
+  <div class="ss-bg"><div class="ss-grid"></div></div>
+  <div class="perm-card">
+    <div class="perm-icon-wrap"><svg width="56" height="56" viewBox="0 0 56 56"><text x="28" y="38" text-anchor="middle" font-size="32">🚫</text></svg></div>
+    <h2 class="perm-title" style="color:#ff4d6d">Access Denied</h2>
+    <p class="perm-desc">Location permission was denied. Please allow location access in your browser settings, then reload.</p>
+    <button id="retryBtn" class="perm-btn" style="background:rgba(255,77,109,.15);border-color:#ff4d6d;color:#ff4d6d">RELOAD APP</button>
+  </div>
+</div>
+
+<div id="app" class="screen hidden">
+
+  <header class="hdr">
+    <div class="hdr-title">
+      <span class="hdr-icon">📡</span>
+      Network Analyzer
+    </div>
+    <div class="hdr-actions">
+      <div class="net-quality-badge" id="netQualityBadge">
+        <span class="nq-dot"></span>
+        <span class="nq-text" id="netQualityText">GOOD</span>
+      </div>
+      <div class="live-pill"><span class="lp-dot"></span>LIVE</div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="realtime">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Real Time
+    </button>
+    <button class="tab" data-tab="active">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+      Speed Test
+    </button>
+    <button class="tab" data-tab="compass">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+      Compass
+    </button>
+  </nav>
+
+  <div class="tab-content" id="tab-realtime">
+
+    <div class="gauge-row">
+
+      <div class="gauge-card" id="cellCard">
+        <div class="gc-header">
+          <div class="gc-tag cell-tag">
+            <span class="gc-gen" id="cellGen">Cellular</span>
+          </div>
+          <div class="gc-carrier" id="cellCarrier">Detecting...</div>
+        </div>
+        <div class="gc-gauge-wrap">
+          <canvas id="cellGauge" width="140" height="90"></canvas>
+          <div class="gc-value-wrap">
+            <div class="gc-main-val" id="cellDbm">–</div>
+            <div class="gc-unit">dBm</div>
+            <div class="gc-asu" id="cellAsu">–</div>
+          </div>
+        </div>
+        <div class="gc-details">
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Cell ID</span>
+            <span class="gc-det-val" id="cellId">214:07:04660</span>
+          </div>
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">PSC</span>
+            <span class="gc-det-val">0</span>
+          </div>
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Uarfcn</span>
+            <span class="gc-det-val">10788</span>
+          </div>
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Tower</span>
+            <span class="gc-det-val" id="towerInfo">-- (--)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gauge-card" id="wifiCard">
+        <div class="gc-header">
+          <div class="gc-tag wifi-tag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.5C5.2 4.8 10.3 2.5 12 2.5s6.8 2.3 10.5 6M4.5 12c2-2 4.7-3.5 7.5-3.5s5.5 1.5 7.5 3.5M7.5 15.5c1.3-1.3 2.8-2 4.5-2s3.2.7 4.5 2M12 20a1 1 0 100-2 1 1 0 000 2z"/></svg>
+            <span id="wifiGen">Wi-Fi</span>
+          </div>
+          <div class="gc-carrier" id="wifiSsid">Scanning...</div>
+        </div>
+        <div class="gc-gauge-wrap">
+          <canvas id="wifiGauge" width="140" height="90"></canvas>
+          <div class="gc-value-wrap">
+            <div class="gc-main-val" id="wifiDbm">–</div>
+            <div class="gc-unit">dBm</div>
+            <div class="gc-asu" id="wifiQuality">–%</div>
+          </div>
+        </div>
+        <div class="gc-details">
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Ch. Width</span>
+            <span class="gc-det-val">112 MHz</span>
+          </div>
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Freq.</span>
+            <span class="gc-det-val">5560</span>
+          </div>
+          <div class="gc-det-row">
+            <span class="gc-det-lbl">Standard</span>
+            <span class="gc-det-val">11AC</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="loc-banner">
+      <div class="lb-left">
+        <div class="lb-icon">📍</div>
+        <div class="lb-info">
+          <div class="lb-coords" id="coords">Acquiring GPS…</div>
+          <div class="lb-acc" id="gpsAcc">Waiting for signal</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+
+      <div class="ping-card">
+        <div class="section-hdr">
+          <div class="section-icon">⏱</div>
+          <span>Latency Test</span>
+          <div class="section-badge" id="pingStatus">TESTING…</div>
+        </div>
+        <div class="ping-list" id="pingList">
+          <div class="ping-item">
+            <div class="ping-host-wrap">
+              <span class="ping-dot" style="background:#00e5ff"></span>
+              <span class="ping-host">Gateway</span>
+            </div>
+            <div class="ping-bar-wrap"><div class="ping-bar" id="pb-gw" style="--c:#00e5ff"></div></div>
+            <span class="ping-ms" id="pm-gw">—</span>
+          </div>
+          <div class="ping-item">
+            <div class="ping-host-wrap">
+              <span class="ping-dot" style="background:#5a8cff"></span>
+              <span class="ping-host">DNS</span>
+            </div>
+            <div class="ping-bar-wrap"><div class="ping-bar" id="pb-dns" style="--c:#5a8cff"></div></div>
+            <span class="ping-ms" id="pm-dns">—</span>
+          </div>
+          <div class="ping-item">
+            <div class="ping-host-wrap">
+              <span class="ping-dot" style="background:#69ff69"></span>
+              <span class="ping-host">Internet</span>
+            </div>
+            <div class="ping-bar-wrap"><div class="ping-bar" id="pb-net" style="--c:#69ff69"></div></div>
+            <span class="ping-ms" id="pm-net">—</span>
+          </div>
+          <div class="ping-item">
+            <div class="ping-host-wrap">
+              <span class="ping-dot" style="background:#ffb300"></span>
+              <span class="ping-host">Cloudflare</span>
+            </div>
+            <div class="ping-bar-wrap"><div class="ping-bar" id="pb-app" style="--c:#ffb300"></div></div>
+            <span class="ping-ms" id="pm-app">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="map-card" style="position: relative;">
+        <div id="miniMap"></div>
+        <div class="map-controls">
+          <button id="zoomInBtn" type="button">+</button>
+          <button id="zoomOutBtn" type="button">−</button>
+        </div>
+        <button id="recenterMapBtn" class="map-recenter hidden" type="button">LIVE</button>
+        <div class="map-coords-overlay" id="mapCoords">Acquiring GPS...</div>
+      </div>
+
+    </div>
+
+    <div class="throughput-card">
+      <div class="section-hdr">
+        <div class="section-icon">📈</div>
+        <span>Network Status</span>
+        <div class="tp-stats">
+          <div class="tp-stat">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2.5"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+            <span id="tpDown">45.00</span>
+            <span class="tp-unit">Mbps</span>
+          </div>
+          <div class="tp-stat">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#69ff69" stroke-width="2.5"><polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/></svg>
+            <span id="tpUp">12.50</span>
+            <span class="tp-unit">Mbps</span>
+          </div>
+        </div>
+      </div>
+      <div class="net-info-row">
+        <div class="net-info-item">
+          <span class="ni-label">Type</span>
+          <span class="ni-value" id="netType">--</span>
+        </div>
+        <div class="net-info-item">
+          <span class="ni-label">Effective</span>
+          <span class="ni-value" id="netEffective">--</span>
+        </div>
+        <div class="net-info-item">
+          <span class="ni-label">RTT</span>
+          <span class="ni-value" id="netRtt">-- ms</span>
+        </div>
+        <div class="net-info-item">
+          <span class="ni-label">Data Saver</span>
+          <span class="ni-value" id="netSaver">OFF</span>
+        </div>
+      </div>
+      <canvas id="waveCanvas" height="70"></canvas>
+    </div>
+
+  </div>
+
+  <div class="tab-content hidden" id="tab-active">
+    <div class="speedtest-container card-blur">
+      <div class="st-header">
+        <h3>SPEEDTEST</h3>
+        <span id="stStatus" class="st-badge">READY</span>
+      </div>
+
+      <div class="st-gauge-wrapper">
+        <canvas id="stGauge" width="240" height="160"></canvas>
+        <div class="st-center-display">
+          <span id="stMainVal">0.0</span>
+          <span id="stMainUnit">Mbps</span>
+        </div>
+      </div>
+
+      <div class="st-metrics">
+        <div class="st-metric">
+          <span class="st-label">Ping</span>
+          <span class="st-val" id="stPing">-- <small>ms</small></span>
+        </div>
+        <div class="st-metric">
+          <span class="st-label">Jitter</span>
+          <span class="st-val" id="stJitter">-- <small>ms</small></span>
+        </div>
+        <div class="st-metric">
+          <span class="st-label" style="color:#00e5ff;">Download</span>
+          <span class="st-val" id="stDl">-- <small>Mbps</small></span>
+          <span class="st-subval" id="stDlBytes">-- <small>MB/s</small></span>
+        </div>
+        <div class="st-metric">
+          <span class="st-label" style="color:#69ff69;">Upload</span>
+          <span class="st-val" id="stUl">-- <small>Mbps</small></span>
+          <span class="st-subval" id="stUlBytes">-- <small>MB/s</small></span>
+        </div>
+      </div>
+
+      <button id="startSpeedTestBtn" class="ss-btn st-btn">
+        <span class="ss-btn-pulse"></span>
+        <span class="ss-btn-text">TEST SPEED</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="tab-content hidden" id="tab-compass">
+    <div class="compass-container card-blur">
+      <div class="st-header">
+        <h3>LIVE COMPASS</h3>
+        <span id="compassStatus" class="st-badge" style="color:#ffb300; border-color:rgba(255,179,0,0.3);">TAP TO START</span>
+      </div>
+
+      <div class="large-compass-wrapper">
+        <div class="compass-top-marker">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--red)">
+            <polygon points="12,2 20,12 12,9 4,12" />
+          </svg>
+        </div>
+        
+        <div class="compass-dial" id="mainCompassDial">
+          <div class="compass-mark c-n">N</div>
+          <div class="compass-mark c-e">E</div>
+          <div class="compass-mark c-s">S</div>
+          <div class="compass-mark c-w">W</div>
+          <div class="compass-mark-sub c-ne"></div>
+          <div class="compass-mark-sub c-se"></div>
+          <div class="compass-mark-sub c-sw"></div>
+          <div class="compass-mark-sub c-nw"></div>
+          <div class="compass-ring-inner"></div>
+        </div>
+      </div>
+
+      <div class="compass-readout">
+        <div class="cr-degree">
+          <span id="compassDegree">0</span><span style="color:var(--dim);">°</span>
+        </div>
+        <div class="cr-heading" id="compassHeadingText">--</div>
+      </div>
+      <button id="startCompassBtn" class="perm-btn" style="margin-top:15px; font-size:0.7rem; padding:8px 20px;">START COMPASS</button>
+      <button id="calibrateBtn" class="perm-btn hidden" style="margin-top:15px; font-size:0.7rem; padding:8px 20px;">CALIBRATE</button>
+      <p style="text-align:center; color:var(--dim); font-size:0.75rem; margin-top:10px;" id="compassHint">
+        Tap to enable device compass
+      </p>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="footer-info">
+      <span class="footer-version">v1.0.0</span>
+      <span class="footer-divider">|</span>
+      <span class="footer-time" id="footerTime">--:--:--</span>
+    </div>
+  </footer>
+
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="script.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registered!', reg))
+        .catch(err => console.error('SW registration failed', err));
+    });
+  }
+</script>
+</body>
+</html>
+
+
